@@ -5,13 +5,40 @@ const app = express();
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const moment = require('moment-timezone');
+moment.tz.setDefault('UTC');
+const serialize = require('serialize-javascript');
 
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
+/* let events = [
+  {description: 'Initial 1', date: moment('2018-02-03','YYYY-MM-DD')},
+  {description: 'Initial 2', date: moment('2018-02-04','YYYY-MM-DD')}
+];  */
+let events = [
+  {
+    "description": "Event 1",
+    "date": "2018-02-03T00:00:00.000Z"
+  },
+  {
+    "description": "Event 2",
+    "date": "2018-02-04T00:00:00.000Z"
+  } 
+];
+
 app.get('/', (req, res) => {
   let template = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
-  res.send(template);
+  let contentMarker = '<!--APP-->';
+  res.send(template.replace(contentMarker, 
+    `<script>var __INITIAL_STATE__ = ${serialize(events)}</script>`
+  ));
+});
 
+
+app.use(require('body-parser').json());
+app.post('/add_event', (req, res) => {
+  events.push(req.body);
+  res.sendStatus(200);
 });
 
 const server = http.createServer(app);
