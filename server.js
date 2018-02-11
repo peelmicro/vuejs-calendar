@@ -16,23 +16,32 @@ let events = [
   {description: 'Initial 2', date: moment().add(1, 'days')},
   {description: 'Initial 3', date: moment().add(-1, 'days')}
 ]; 
-// let events = [
-//   {
-//     "description": "Event 1",
-//     "date": "2018-02-03T00:00:00.000Z"
-//   },
-//   {
-//     "description": "Event 2",
-//     "date": "2018-02-04T00:00:00.000Z"
-//   } 
-// ];
+
+let renderer;
+
+if (process.env.NODE_ENV==='production') {
+  let bundle = fs.readFileSync('./dist/node.bundle.js', 'utf-8');
+  renderer = require('vue-server-renderer').createBundleRenderer(bundle);  
+  app.use('/dist', express.static(path.join(__dirname, 'dist')));
+  
+}
 
 app.get('/', (req, res) => {
   let template = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
   let contentMarker = '<!--APP-->';
-  res.send(template.replace(contentMarker, 
-    `<script>var __INITIAL_STATE__ = ${serialize(events)}</script>`
-  ));
+  if (renderer) {
+    renderer.renderToString({events}, (err, html) => {
+      if (err) {
+        console.log(err);
+      } else {
+        res.send(template.replace(contentMarker, 
+          `<script>var __INITIAL_STATE__ = ${serialize(events)}</script>\n${html}`
+        ));        
+      }
+    })
+  } else {
+    res.send('<p>Awaiting compilation...</p><script src="/reload/reload.js"></script>');
+  }
 });
 
 
@@ -48,6 +57,13 @@ if (process.env.NODE_ENV === 'development') {
   const reload = require('reload');
   const reloadServer = reload(server, app);
   require('./webpack-dev-middleware').init(app);
+  require('./webpack-server-compiler').init(function(bundle) {
+    let needsReload = (renderer===undefined);
+    renderer = require('vue-server-renderer').createBundleRenderer(bundle);
+    if (needsReload) {
+      reloadServer.reload();
+    }
+  })
 }
 
 server.listen(process.env.PORT, function () {
